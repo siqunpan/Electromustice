@@ -1,0 +1,19 @@
+﻿<Properties>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\Scripts\NetworkManager.cs">
+    <Files>
+      <File FileName="Dive_Unity_Demo.sln" Line="1" Column="1" />
+      <File FileName="Assets\Scripts\NetworkManager.cs" Line="96" Column="15" />
+      <File FileName="Assets\Scripts\GlobalVariables.cs" Line="6" Column="16" />
+      <File FileName="Assets\Electromustice\Scripts\MenuManager.cs" Line="72" Column="19" />
+      <File FileName="Assets\Dive\DiveFPSController.js" Line="37" Column="15" />
+      <File FileName="Assets\Examples\CardboardSDK\CardboardInput.cs" Line="153" Column="4" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore>
+      <Breakpoint file="C:\Users\Administrator\Desktop\Dive_Unity_Demo\Assets\Scripts\NetworkManager.cs" line="96" />
+    </BreakpointStore>
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>
