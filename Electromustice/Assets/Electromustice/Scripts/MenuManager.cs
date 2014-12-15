@@ -53,10 +53,8 @@ public class MenuManager : MonoBehaviour {
 		}
 		
 		#elif UNITY_ANDROID
-		#elif UNITY_IPHONE
-		
 		go_menuClient.SetActive (true);
-		
+		#elif UNITY_IPHONE
 		#endif
 
 	}

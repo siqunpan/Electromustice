@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 
 public class NetworkManager : MonoBehaviour {
 
-	public GameObject go_player;
 	public GameObject ServerCamera;
 
 	private System.Int32 dwFlag = new int();
@@ -13,6 +12,7 @@ public class NetworkManager : MonoBehaviour {
 	private const int INTERNET_CONNECTION_LAN = 2;
 	[DllImport("wininet.dll")]
 	private static extern bool InternetGetConnectedState(ref int dwFlag, int dwReserved);
+
 
 	private int i_maxNumOfClients = 4;   // maximum 4 clients in the game
 	private const string s_typeName = "MyUniqueElectromusiticeGame";
@@ -33,12 +33,14 @@ public class NetworkManager : MonoBehaviour {
 	private Vector3[] v3Array_playerPosition;
 	private Vector3[] v3Array_playerRotation;
 	private GameObject[] goArray_playerEmpty;
+	private GameObject go_player;
 
 	public Vector3 v3_speed = new Vector3(1, 1, 1);
 
 	void Awake()
 	{
-		
+		go_player = GameObject.Instantiate (
+			GlobalVariables.GO_PLAYER_COMPLETE, new Vector3(0f, 2f, 0f), Quaternion.identity) as GameObject;
 		goArray_playerEmpty = new GameObject[i_maxNumOfClients];
 		
 		for(int i = 0; i < i_maxNumOfClients; ++i)
@@ -48,6 +50,10 @@ public class NetworkManager : MonoBehaviour {
 		
 		#if UNITY_EDITOR
 		Application.runInBackground = true;
+
+		GameObject go_menuClient = GameObject.Find("MenuClient");
+		go_menuClient.SetActive(false);
+
 		go_player.SetActive(false);
 		ServerCamera.SetActive(true);
 		b_isServer = true;
@@ -58,14 +64,14 @@ public class NetworkManager : MonoBehaviour {
 		
 		for(int i = 0; i < i_maxNumOfClients; ++i)
 		{
-			v3Array_playerPosition[i] = Vector3.zero;
+			v3Array_playerPosition[i] = new Vector3(0f, 2f, 0f);
 			v3Array_playerRotation[i] = Vector3.zero;
 			sArray_viewIDPlayer[i] = null;
 		}
 		#elif UNITY_ANDROID
-		#elif UNITY_IPHONE
 		b_isServer = false;
 		ServerCamera.SetActive (false);
+		#elif UNITY_IPHONE
 		#endif
 	}
 
@@ -131,7 +137,7 @@ public class NetworkManager : MonoBehaviour {
 
 	void OnGUI()
 	{
-		
+		#if UNITY_EDITOR
 		if(b_serverStarted == false && b_isServer)
 		{
 			if (GUI.Button(new Rect(Screen.width/4, Screen.height/4, Screen.width/2, Screen.height/2), "StartServer"))
@@ -152,42 +158,50 @@ public class NetworkManager : MonoBehaviour {
 				}
 			}
 		}
+		#elif UNITY_ANDROID
+		#elif UNITY_IPHONE
+		#endif
 	}
 
 	void Update()
 	{
+		#if UNITY_EDITOR
 		UpdatePosition ();
 
 		//server cannot  control the rotation of a player, it can just update the rotation of one player to all other players
 		UpdateRotation ();
+		#elif UNITY_ANDROID
+		#elif UNITY_IPHONE
+		#endif
 	}
 	
 	private void UpdatePosition()
 	{
 		if(i_indexPlayerControlled != -1)
 		{
-			if(Input.GetKeyDown(KeyCode.UpArrow))
+			if(Input.GetKey(KeyCode.UpArrow))
 			{
 				v3Array_playerPosition[i_indexPlayerControlled].z += v3_speed.z * Time.deltaTime;
 			}
-			else if(Input.GetKeyDown(KeyCode.DownArrow))
+			else if(Input.GetKey(KeyCode.DownArrow))
 			{
 				v3Array_playerPosition[i_indexPlayerControlled].z -= v3_speed.z * Time.deltaTime;
 			}
-			else if(Input.GetKeyDown(KeyCode.LeftAlt))
+			else if(Input.GetKey(KeyCode.LeftArrow))
 			{
 				v3Array_playerPosition[i_indexPlayerControlled].x += v3_speed.x * Time.deltaTime;
 			}
-			else if(Input.GetKeyDown(KeyCode.RightArrow))
+			else if(Input.GetKey(KeyCode.RightArrow))
 			{
 				v3Array_playerPosition[i_indexPlayerControlled].x -= v3_speed.x * Time.deltaTime;
 			}
 
-			if(Input.GetKeyDown(KeyCode.Space))
+			if(Input.GetKey(KeyCode.Space))
 			{
 				v3Array_playerPosition[i_indexPlayerControlled].y += v3_speed.y * Time.deltaTime;
 			}
 
+			goArray_playerEmpty[i_indexPlayerControlled].transform.position = v3Array_playerPosition[i_indexPlayerControlled];
 			networkView.RPC ("client_updatePositionRPC", RPCMode.Others, i_indexPlayerControlled, v3Array_playerPosition[i_indexPlayerControlled]);
 		}
 
@@ -270,7 +284,7 @@ public class NetworkManager : MonoBehaviour {
 		}
 		else
 		{
-			go_player.GetComponent<Transform>().position = _v3_pos;
+			go_player.transform.position = _v3_pos;
 		}
 	}
 }
