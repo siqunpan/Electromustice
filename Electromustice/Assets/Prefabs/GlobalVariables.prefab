@@ -41,6 +41,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   go_playerEmpty: {fileID: 100002, guid: 937a0b6d6d8ebf148902b73adb810700, type: 2}
   go_playerComplete: {fileID: 100006, guid: 7ccadd0bbfdc9664e8673f4ad068840e, type: 2}
+  f_lengthRoom: 5
+  f_widthRoom: 5
 --- !u!1001 &100100000
 Prefab:
   m_ObjectHideFlags: 1
