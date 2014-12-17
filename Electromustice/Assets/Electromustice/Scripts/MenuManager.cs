@@ -62,7 +62,7 @@ public class MenuManager : MonoBehaviour {
 	void OnTriggerEnter(Collider other)
 	{
 		s_nameMenu = other.gameObject.name;
-		if (s_nameMenu != "player" && s_nameMenu != "plane") {
+		if (s_nameMenu != "player(Clone)" && s_nameMenu != "plane") {
 
 						colorOrigin = other.gameObject.GetComponent<MeshRenderer> ().material.color;
 						col = other;
@@ -76,7 +76,7 @@ public class MenuManager : MonoBehaviour {
 
 	void OnTriggerExit(Collider other)
 	{
-		if(other.gameObject.name != "player" && other.gameObject.name != "plane")
+		if(other.gameObject.name != "player(Clone)" && other.gameObject.name != "plane")
 		{
 			EventManager.RemoveEventFunction(EnumEvent.OnMagnetDown, MenuFunction);
 //			MenuEvent -= new MenuEventHandler(ChangeColor);

@@ -1,7 +1,25 @@
 ﻿using UnityEngine;
+using System;
 using System.Collections;
 using System.Runtime.InteropServices;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 
+[Serializable] // serializable for transfering on network
+public class PlayerInfo{
+	// Attention: if not set to empty string, the playerID will not be instantiated
+	// even in case of playerList[i] = new PlayerInfo();
+	public string playerID = "";
+	public bool active = false;
+	//public Vector3 pos;
+	//public Vector3 rot;
+	public float x;
+	public float y;
+	public float z;
+	public float rx;
+	public float ry;
+	public float rz;
+};
 
 public class NetworkManager : MonoBehaviour {
 
@@ -14,63 +32,73 @@ public class NetworkManager : MonoBehaviour {
 	private static extern bool InternetGetConnectedState(ref int dwFlag, int dwReserved);
 
 
-	private int i_maxNumOfClients = 4;   // maximum 4 clients in the game
+	private int i_maxNumOfClients = 2;   // maximum 4 clients in the game
 	private const string s_typeName = "MyUniqueElectromusiticeGame";
 	private string s_gameName = "DefaultRoomName";
 	private bool b_serverStarted = false;
 	private bool b_isServer = false;
 	private int i_indexMyPlayer = -1;    //just for the clients : the index of the value of the array iArray_idPlayer of my own player
 	private int i_indexPlayerControlled = -1; //the index of the value of the array iArray_idPlayer of the player controlled by the server
-//	private int idPlayerControlled = -1;   // the networkView ID of the player controlled by the server
+
 	/*
 	 * Just used by server, its length is i_maxNumOfClients 
 	 * The index of the array is i_idPlayer
 	 * The values of the array is the networkView ID
 	 * 
 	 */
-	private string[] sArray_viewIDPlayer;
+	//private string[] sArray_viewIDPlayer;
 
-	private Vector3[] v3Array_playerPosition;
-	private Vector3[] v3Array_playerRotation;
+	//private Vector3[] v3Array_playerPosition;
+	//private Vector3[] v3Array_playerRotation;
 	private GameObject[] goArray_playerEmpty;
+	private PlayerInfo[] playersInfo;
 	private GameObject go_player;
 
 	public Vector3 v3_speed = new Vector3(1, 1, 1);
 
 	void Awake()
 	{
-		go_player = GameObject.Instantiate (
-			GlobalVariables.GO_PLAYER_COMPLETE, new Vector3(0f, 2f, 0f), Quaternion.identity) as GameObject;
 		goArray_playerEmpty = new GameObject[i_maxNumOfClients];
-		
+
+		playersInfo = new PlayerInfo[i_maxNumOfClients];
+
+		for (int i=0; i<playersInfo.Length; i++) {
+			playersInfo[i] = new PlayerInfo();
+		}
+
 		for(int i = 0; i < i_maxNumOfClients; ++i)
 		{
 			goArray_playerEmpty[i] = null;
 		}
+
 		
+		for(int i = 0; i < i_maxNumOfClients; ++i)
+		{
+			playersInfo[i].x = 0f;
+			playersInfo[i].y = 2f;
+			playersInfo[i].z = 0f;
+			playersInfo[i].rx = 0f;
+			playersInfo[i].ry = 0f;
+			playersInfo[i].rz = 0f;
+		}
+
 		#if UNITY_EDITOR
 		Application.runInBackground = true;
 
 		GameObject go_menuClient = GameObject.Find("MenuClient");
 		go_menuClient.SetActive(false);
 
-		go_player.SetActive(false);
+
 		ServerCamera.SetActive(true);
 		b_isServer = true;
 		b_serverStarted = false;
-		sArray_viewIDPlayer = new string[i_maxNumOfClients];
-		v3Array_playerPosition = new Vector3[i_maxNumOfClients];
-		v3Array_playerRotation = new Vector3[i_maxNumOfClients];
-		
-		for(int i = 0; i < i_maxNumOfClients; ++i)
-		{
-			v3Array_playerPosition[i] = new Vector3(0f, 2f, 0f);
-			v3Array_playerRotation[i] = Vector3.zero;
-			sArray_viewIDPlayer[i] = null;
-		}
+
 		#elif UNITY_ANDROID
 		b_isServer = false;
 		ServerCamera.SetActive (false);
+
+		go_player = GameObject.Instantiate (
+			GlobalVariables.GO_PLAYER_COMPLETE, new Vector3(0f, 2f, 0f), Quaternion.identity) as GameObject;
 		#elif UNITY_IPHONE
 		#endif
 	}
@@ -97,38 +125,51 @@ public class NetworkManager : MonoBehaviour {
 		Debug.Log ("server initialised");
 	}
 
-	void OnPlayerConnected(NetworkPlayer player)
-	{
-		for(int i = 0; i < sArray_viewIDPlayer.Length; ++i)
-		{
-			if(sArray_viewIDPlayer[i] == null)
-			{
-				NetworkViewID viewID = Network.AllocateViewID();
-				sArray_viewIDPlayer[i] = viewID.ToString();
-
-				goArray_playerEmpty[i] = GameObject.Instantiate(GlobalVariables.GO_PLAYER_EMPTY) as GameObject;
-
-				networkView.RPC("client_sendIDToPlayerRPC", player, i, viewID);
+	// client side code
+	void OnConnectedToServer(){
+		// Send client's player info to server
+		networkView.RPC("serverInsertIntoPlayerList", RPCMode.Server, Network.player.ToString());
+	}
 	
-				break;
+	// server side code. rpc called by the client
+	[RPC]
+	void serverInsertIntoPlayerList(string np){
+		int maxPlayer = i_maxNumOfClients;
+		for (int i=0; i<maxPlayer; i++) {
+			if(!playersInfo[i].active){
+				playersInfo[i].playerID = np;
+				playersInfo[i].active = true;
+				goArray_playerEmpty[i] = GameObject.Instantiate(GlobalVariables.GO_PLAYER_EMPTY) as GameObject;
+				break;//!
 			}
 		}
+
+		// inform the clients the new player list
+		// Attention: don't do this in OnPlayerConnected.
+		// Because when client connected, its info may not arrived at the server yet.
+		sendPlayerListToClients ();
+	}
+
+	void OnPlayerConnected(NetworkPlayer player)
+	{
 	}
 
 	void OnPlayerDisconnected(NetworkPlayer player)
 	{
-		for(int i = 0; i < sArray_viewIDPlayer.Length; ++i)
+		for(int i = 0; i < playersInfo.Length; ++i)
 		{
-			if(sArray_viewIDPlayer[i] == player.ToString())
+			if(playersInfo[i].playerID.Equals(player.ToString(),StringComparison.Ordinal))
 			{
-				sArray_viewIDPlayer[i] 	= null;
-
+				playersInfo[i].playerID 	= "";
+				playersInfo[i].active = false;
 				if(goArray_playerEmpty[i] != null)
 				{
 					Destroy(goArray_playerEmpty[i]);
+					goArray_playerEmpty[i] = null;
 				}
 
-				networkView.RPC("client_removePlayerExitedRPC", RPCMode.Others, i);
+				// inform the clients the new player list
+				sendPlayerListToClients ();
 
 				break;
 			}
@@ -147,9 +188,9 @@ public class NetworkManager : MonoBehaviour {
 			}
 		}
 
-		for(int i = 0; i < sArray_viewIDPlayer.Length; ++i)
+		for(int i = 0; i < playersInfo.Length; ++i)
 		{
-			if(sArray_viewIDPlayer[i] != null)
+			if(playersInfo[i].playerID != "")
 			{
 				if(GUI.Button(new Rect(i * Screen.width/4, 0, Screen.width/8, Screen.height/8), "ControlPlayer"+i.ToString()))
 				{
@@ -181,28 +222,32 @@ public class NetworkManager : MonoBehaviour {
 		{
 			if(Input.GetKey(KeyCode.UpArrow))
 			{
-				v3Array_playerPosition[i_indexPlayerControlled].z += v3_speed.z * Time.deltaTime;
+				playersInfo[i_indexPlayerControlled].x += v3_speed.x * Time.deltaTime;
 			}
 			else if(Input.GetKey(KeyCode.DownArrow))
 			{
-				v3Array_playerPosition[i_indexPlayerControlled].z -= v3_speed.z * Time.deltaTime;
+				playersInfo[i_indexPlayerControlled].x -= v3_speed.x * Time.deltaTime;
 			}
 			else if(Input.GetKey(KeyCode.LeftArrow))
 			{
-				v3Array_playerPosition[i_indexPlayerControlled].x += v3_speed.x * Time.deltaTime;
+				playersInfo[i_indexPlayerControlled].z += v3_speed.z * Time.deltaTime;
 			}
 			else if(Input.GetKey(KeyCode.RightArrow))
 			{
-				v3Array_playerPosition[i_indexPlayerControlled].x -= v3_speed.x * Time.deltaTime;
+				playersInfo[i_indexPlayerControlled].z -= v3_speed.z * Time.deltaTime;
 			}
 
 			if(Input.GetKey(KeyCode.Space))
 			{
-				v3Array_playerPosition[i_indexPlayerControlled].y += v3_speed.y * Time.deltaTime;
+				playersInfo[i_indexPlayerControlled].y += v3_speed.y * Time.deltaTime;
 			}
-
-			goArray_playerEmpty[i_indexPlayerControlled].transform.position = v3Array_playerPosition[i_indexPlayerControlled];
-			networkView.RPC ("client_updatePositionRPC", RPCMode.Others, i_indexPlayerControlled, v3Array_playerPosition[i_indexPlayerControlled]);
+			Vector3 pos = new Vector3(playersInfo[i_indexPlayerControlled].x, playersInfo[i_indexPlayerControlled].y, playersInfo[i_indexPlayerControlled].z);
+			if(goArray_playerEmpty[i_indexPlayerControlled] != null)
+			{
+				goArray_playerEmpty[i_indexPlayerControlled].transform.position = pos;
+				networkView.RPC ("client_updatePositionRPC", RPCMode.Others, i_indexPlayerControlled, pos);
+				//sendPlayerListToClients();
+			}
 		}
 
 	}
@@ -212,58 +257,50 @@ public class NetworkManager : MonoBehaviour {
 
 	}
 
+	// server side code
+	void sendPlayerListToClients(){
+		BinaryFormatter binFormatter = new BinaryFormatter ();
+		MemoryStream memStream = new MemoryStream (); // Stream whose backing store is memory. Defined in namespace System.IO
+		binFormatter.Serialize (memStream,playersInfo);
+		byte[] serializedPl = memStream.ToArray (); // Convert the serialized object to byte array
+		memStream.Close ();
+		networkView.RPC ("clientRefreshPlayerList",RPCMode.Others,serializedPl);
+	}
+	
+	// client side code: rpc called by the server
 	[RPC]
-	public void client_sendIDToPlayerRPC(int _i_indexMyPlayer, NetworkViewID _viewID)
-	{
-		client_sendIDToPlayerLocal (_i_indexMyPlayer, _viewID);
-
-	}
-
-	public void client_sendIDToPlayerLocal (int _i_indexMyPlayer, NetworkViewID _viewID)
-	{
-		go_player.GetComponent<NetworkView> ().viewID = _viewID;
-		i_indexMyPlayer = _i_indexMyPlayer;
-
-		networkView.RPC ("server_initDoneThisPlayerRPC", RPCMode.Server, _i_indexMyPlayer);
-	}
-
-	[RPC]
-	public void server_initDoneThisPlayerRPC(int _i_indexNewPlayer)
-	{
-		server_initDoneThisPlayerLocal (_i_indexNewPlayer);
-	}
-
-	public void server_initDoneThisPlayerLocal (int _i_indexNewPlayer)
-	{
-		networkView.RPC ("client_newPlayerJoinedRPC", RPCMode.Others, _i_indexNewPlayer);
-	}
-
-	[RPC]
-	public void client_newPlayerJoinedRPC(int _i_indexNewPlayer)
-	{
-		client_newPlayerJoinedLocal (_i_indexNewPlayer);
-	}
-
-	public void client_newPlayerJoinedLocal (int _i_indexNewPlayer)
-	{
-		if(i_indexMyPlayer != _i_indexNewPlayer)
-		{
-			goArray_playerEmpty[_i_indexNewPlayer] = GameObject.Instantiate(
-				GlobalVariables.GO_PLAYER_EMPTY, new Vector3(0, 0, 0), Quaternion.identity) as GameObject;
+	void clientRefreshPlayerList(byte[] serializedPlayerList){
+		BinaryFormatter binFormatter = new BinaryFormatter ();
+		MemoryStream memStream = new MemoryStream (); 
+		// Write the byte data we received into the stream 
+		// The second parameter specifies the offset to the beginning of the stream
+		// The third parameter specifies the maximum number of bytes to be written
+		memStream.Write(serializedPlayerList,0,serializedPlayerList.Length); 
+		// Stream internal "reader" is now at the last position
+		// Shift it back to the beginning for reading
+		memStream.Seek(0, SeekOrigin.Begin); 
+		playersInfo = (PlayerInfo[])binFormatter.Deserialize (memStream);
+		// refresh playerNumber
+		int pNum = 0;
+		foreach (PlayerInfo p in playersInfo) {
+			if(p.active) pNum++;
 		}
-	}
 
-	[RPC]
-	public void client_removePlayerExitedRPC(int _i_indexPlayerExited)
-	{
-		client_removePlayerExitedLocal (_i_indexPlayerExited);
-	}
-
-	public void client_removePlayerExitedLocal(int _i_indexPlayerExited)
-	{
-		if(goArray_playerEmpty[_i_indexPlayerExited] != null)
-		{
-			Destroy(goArray_playerEmpty[_i_indexPlayerExited]);
+		for (int i=0; i<playersInfo.Length; i++) {
+			if(playersInfo[i].playerID.Equals(Network.player.ToString(),StringComparison.Ordinal)){
+				i_indexMyPlayer = i;
+			}
+			else if(playersInfo[i].active && goArray_playerEmpty[i] == null){
+				Vector3 pos = new Vector3(playersInfo[i].x, playersInfo[i].y, playersInfo[i].z);
+				goArray_playerEmpty[i] = 
+					GameObject.Instantiate(GlobalVariables.GO_PLAYER_EMPTY, 
+					                       pos,
+					                       Quaternion.identity) as GameObject;
+			}
+			else if(!playersInfo[i].active && goArray_playerEmpty[i] != null){
+				Destroy(goArray_playerEmpty[i]);
+				goArray_playerEmpty[i] = null;
+			}
 		}
 	}
 
@@ -279,7 +316,7 @@ public class NetworkManager : MonoBehaviour {
 		{
 			if(goArray_playerEmpty[_i_indexPlayer] != null)
 			{
-				goArray_playerEmpty[_i_indexPlayer].GetComponent<Transform>().position = _v3_pos;
+				goArray_playerEmpty[_i_indexPlayer].transform.position = _v3_pos;
 			}
 		}
 		else
